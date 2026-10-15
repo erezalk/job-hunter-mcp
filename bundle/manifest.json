@@ -1,0 +1,44 @@
+{
+  "manifest_version": "0.3",
+  "name": "job-hunter",
+  "display_name": "Job Hunter",
+  "version": "1.1.0",
+  "description": "Let Claude add jobs to your local Job Hunter Board.",
+  "long_description": "Adds a single tool, add_job, which adds a job position to the Board of the Job Hunter account that owns the integration token, optionally with an already-calculated job-fit evaluation that Job Hunter shows as an External AI match. Talks only to your own Job Hunter backend.",
+  "author": { "name": "Erez Alkalay" },
+  "server": {
+    "type": "node",
+    "entry_point": "server/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/server/index.js"],
+      "env": {
+        "JOB_HUNTER_BASE_URL": "${user_config.base_url}",
+        "JOB_HUNTER_TOKEN": "${user_config.token}"
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "add_job",
+      "description": "Add one job position to your Job Hunter Board (duplicates are detected by Job Hunter). Optionally include an already-calculated job-fit evaluation (fitScore, matchingSkills, missingSkills, concerns, evaluationModel)."
+    }
+  ],
+  "user_config": {
+    "base_url": {
+      "type": "string",
+      "title": "Job Hunter backend URL",
+      "description": "Where your Job Hunter backend runs. Locally this is http://localhost:8080.",
+      "default": "http://localhost:8080",
+      "required": true
+    },
+    "token": {
+      "type": "string",
+      "title": "Job Hunter integration token",
+      "description": "Generate it in Job Hunter: Settings > Claude / MCP > Generate token. It is stored in your macOS Keychain.",
+      "sensitive": true,
+      "required": true
+    }
+  },
+  "compatibility": { "platforms": ["darwin", "win32"] }
+}

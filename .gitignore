@@ -1,0 +1,18 @@
+node_modules/
+coverage/
+
+# Local configuration (holds the integration token)
+.env
+.env.*
+!.env.example
+
+# Build output: bundled server and packed extension
+bundle/server/
+*.mcpb
+
+*.log
+
+# Editor / OS
+.idea/
+.vscode/
+.DS_Store

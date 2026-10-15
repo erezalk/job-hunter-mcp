@@ -1,0 +1,32 @@
+{
+  "name": "job-hunter-mcp",
+  "version": "1.1.0",
+  "description": "Local stdio MCP server that lets Claude Desktop add jobs (optionally with an already-calculated fit evaluation) to the Job Hunter Board (single tool: add_job).",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "build": "node scripts/build.mjs",
+    "pack": "npm run build && mcpb pack bundle job-hunter-mcp.mcpb",
+    "inspect": "npm run build && mcp-inspector node bundle/server/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "^2.3.1",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@anthropic-ai/mcpb": "^2.1.2",
+    "@eslint/js": "^10.0.0",
+    "@modelcontextprotocol/client": "^2.3.1",
+    "@modelcontextprotocol/inspector": "^2.9.0",
+    "@types/node": "^25.0.0",
+    "esbuild": "^0.28.0",
+    "eslint": "^10.12.0",
+    "typescript": "^5.9.0",
+    "typescript-eslint": "^8.71.1",
+    "vitest": "^4.1.11"
+  }
+}
