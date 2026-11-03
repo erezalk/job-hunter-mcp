@@ -26,7 +26,7 @@ npm run dev
 2. Go to **Settings → Claude / MCP** and click **Generate token**.
 3. Click **Copy**. The token starts with `jh_` and is shown **only once**; if you lose it, generate a new one.
 
-Jobs added with this token go to the Board of the account that generated it. The token does not expire; it works until you revoke it or generate a new one.
+Jobs added with this token go to the Board of the account that generated it, and `get_companies` lists that account's companies. The token does not expire; it works until you revoke it or generate a new one.
 
 ## 3. Build the extension
 
@@ -62,9 +62,15 @@ With an evaluation:
 
 The ticket's **AI match** section then shows the score labelled **External AI** (plus the model name if Claude passed one), and Source shows External AI. Job Hunter does not re-evaluate it and does not move a low score to Low Match; **Re-evaluate** in the ticket replaces it with Job Hunter's configured provider result.
 
+To see which companies you already have (useful to avoid them during job discovery):
+
+> List the companies I already have in Job Hunter, then find me new backend roles at other companies.
+
+Claude calls `get_companies` (read-only, no arguments), which returns the names of every company in your account regardless of job status, and uses them to exclude companies itself.
+
 ## What must be running
 
-| Component | Needed for `add_job` |
+| Component | Needed for `add_job` and `get_companies` |
 |---|---|
 | PostgreSQL (`docker compose`) | Yes |
 | Backend (port 8080) | Yes |

@@ -13,11 +13,47 @@ async function connect(fetchImpl: typeof fetch = fetch) {
 }
 
 describe('MCP server', () => {
-  it('exposes exactly one tool, add_job, with the Add Job fields and no owner field', async () => {
+  it('exposes exactly two tools: add_job and the read-only get_companies', async () => {
     const { tools } = await (await connect()).listTools()
-    expect(tools.map((t) => t.name)).toEqual(['add_job'])
+    expect(tools.map((t) => t.name)).toEqual(['add_job', 'get_companies'])
+  })
 
-    const schema = tools[0]!.inputSchema as { properties: Record<string, unknown>; required?: string[] }
+  it('registers get_companies as a read-only tool that takes no arguments', async () => {
+    const { tools } = await (await connect()).listTools()
+    const tool = tools.find((t) => t.name === 'get_companies')!
+
+    expect(tool.annotations?.readOnlyHint).toBe(true)
+    const schema = tool.inputSchema as { properties?: Record<string, unknown>; required?: string[] }
+    expect(Object.keys(schema.properties ?? {})).toEqual([])
+    expect(schema.required ?? []).toEqual([])
+  })
+
+  it('calls the companies endpoint through get_companies and returns the list', async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ companies: [{ name: 'Acme' }, { name: 'Beta' }] }), { status: 200 }),
+    )
+    const client = await connect(fetchMock)
+    const result = await client.callTool({ name: 'get_companies', arguments: {} })
+
+    expect(result.isError).toBeFalsy()
+    expect(result.content).toEqual([{ type: 'text', text: 'Companies already in Job Hunter (2):\n- Acme\n- Beta' }])
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock.mock.calls[0]![0]).toBe('http://localhost:8080/api/integrations/companies')
+    expect(fetchMock.mock.calls[0]![1]!.method).toBe('GET')
+  })
+
+  it('reports authentication failures from get_companies as a tool error', async () => {
+    const client = await connect(vi.fn<typeof fetch>().mockResolvedValue(new Response('{}', { status: 401 })))
+    const result = await client.callTool({ name: 'get_companies', arguments: {} })
+    expect(result.isError).toBe(true)
+    expect(JSON.stringify(result.content)).toContain('Job Hunter authentication failed')
+  })
+
+  it('keeps add_job with the Add Job fields and no owner field', async () => {
+    const { tools } = await (await connect()).listTools()
+    const addJobTool = tools.find((t) => t.name === 'add_job')!
+
+    const schema = addJobTool.inputSchema as { properties: Record<string, unknown>; required?: string[] }
     expect(Object.keys(schema.properties).sort()).toEqual(
       [
         'companyName', 'concerns', 'currency', 'description', 'evaluationModel', 'fitScore', 'location',

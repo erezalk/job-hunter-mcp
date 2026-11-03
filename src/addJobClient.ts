@@ -29,7 +29,7 @@ export type AddJobOutcome =
   | { kind: 'unavailable' }
   | { kind: 'error' }
 
-const TIMEOUT_MS = 15_000
+export const TIMEOUT_MS = 15_000
 
 function pickFields(input: AddJobInput): AddJobInput {
   const {

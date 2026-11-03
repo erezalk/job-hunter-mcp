@@ -2,9 +2,9 @@
   "manifest_version": "0.3",
   "name": "job-hunter",
   "display_name": "Job Hunter",
-  "version": "1.1.0",
-  "description": "Let Claude add jobs to your local Job Hunter Board.",
-  "long_description": "Adds a single tool, add_job, which adds a job position to the Board of the Job Hunter account that owns the integration token, optionally with an already-calculated job-fit evaluation that Job Hunter shows as an External AI match. Talks only to your own Job Hunter backend.",
+  "version": "1.2.0",
+  "description": "Let Claude add jobs to your local Job Hunter Board and see which companies you already have.",
+  "long_description": "Adds two tools. add_job adds a job position to the Board of the Job Hunter account that owns the integration token, optionally with an already-calculated job-fit evaluation that Job Hunter shows as an External AI match. get_companies is read-only and lists the names of the companies already in that account, so Claude can skip companies you have already considered. Talks only to your own Job Hunter backend.",
   "author": { "name": "Erez Alkalay" },
   "server": {
     "type": "node",
@@ -22,6 +22,10 @@
     {
       "name": "add_job",
       "description": "Add one job position to your Job Hunter Board (duplicates are detected by Job Hunter). Optionally include an already-calculated job-fit evaluation (fitScore, matchingSkills, missingSkills, concerns, evaluationModel)."
+    },
+    {
+      "name": "get_companies",
+      "description": "Read-only: list the names of the companies already in your Job Hunter account (any status), e.g. to avoid companies you have already considered."
     }
   ],
   "user_config": {
