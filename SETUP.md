@@ -4,25 +4,22 @@ Goal: ask Claude Desktop to "add these jobs to my Job Hunter Board" and see them
 
 Paths below assume the three repositories (`job-hunter-server`, `job-hunter-web`, `job-hunter-mcp`) are cloned side by side in one folder.
 
+**Host requirements for normal use: Git, Docker Desktop and Claude Desktop. No Java, Maven, Node.js, npm or PostgreSQL.**
+
 ## 1. Start Job Hunter
 
+Follow **Quick Start with Docker** in the `job-hunter-server` README. In short:
+
 ```bash
-# PostgreSQL (Docker must be running)
 cd job-hunter-server
-docker compose up -d
-
-# Backend on http://localhost:8080
-./mvnw spring-boot:run
-
-# Frontend on http://localhost:5173 (in another terminal; needed to manage the token and see the Board)
-cd job-hunter-web
-npm install
-npm run dev
+docker compose up --build        # web UI: http://localhost:3000, backend API: http://localhost:8080
 ```
+
+Contributors who run the backend/frontend from source instead should use "Manual development" in the same README.
 
 ## 2. Generate a token
 
-1. Open http://localhost:5173 and log in.
+1. Open http://localhost:3000 (Docker setup; `http://localhost:5173` with the manual dev server) and log in.
 2. Go to **Settings → Claude / MCP** and click **Generate token**.
 3. Click **Copy**. The token starts with `jh_` and is shown **only once**; if you lose it, generate a new one.
 
@@ -30,19 +27,22 @@ Jobs added with this token go to the Board of the account that generated it, and
 
 ## 3. Build the extension
 
+The `.mcpb` file is build output and is not committed to Git, so you build it once. With Docker, no Node.js or npm is needed on your machine:
+
 ```bash
 cd job-hunter-mcp
-npm install
-npm run pack        # creates job-hunter-mcp.mcpb in this folder
+docker build -f Dockerfile.pack --output type=local,dest=. .    # creates job-hunter-mcp.mcpb in this folder
 ```
 
-Node.js 20+ is only needed for building; Claude Desktop runs the extension itself.
+Contributors with Node.js 20+ can use `npm install && npm run pack` instead (same result).
+
+Node.js is **not** needed to run the extension: it is a self-contained bundle (`server/index.js`, no `node_modules`) that Claude Desktop starts itself. The manifest declares a `node` server, which Claude Desktop runs with the Node.js runtime it ships with, according to the MCPB specification. This has not been verified on a computer without Node.js installed; if Claude Desktop ever reports that Node.js is missing, install Node.js 20+ as a fallback.
 
 ## 4. Install it in Claude Desktop
 
 1. Open the `.mcpb` file with Claude Desktop (double-click it, drag it into the window, or use the extension install option in Claude Desktop's settings).
 2. When asked, enter:
-   - **Job Hunter backend URL**: `http://localhost:8080`
+   - **Job Hunter backend URL**: `http://localhost:8080` (the backend port the Docker stack publishes on your machine; if you changed `API_HOST_PORT`, use that port)
    - **Job Hunter integration token**: the token from step 2
 3. Make sure the extension is enabled, then start a new chat.
 
@@ -72,10 +72,11 @@ Claude calls `get_companies` (read-only, no arguments), which returns the names 
 
 | Component | Needed for `add_job` and `get_companies` |
 |---|---|
-| PostgreSQL (`docker compose`) | Yes |
-| Backend (port 8080) | Yes |
-| Frontend (`npm run dev`) | Only to manage the token or look at the Board |
+| Docker stack (`docker compose up`) | Yes: the `backend` and `postgres` containers |
+| `web` container (http://localhost:3000) | Only to manage the token or look at the Board |
 | job-hunter-mcp | Started by Claude Desktop |
+
+(Manual development: PostgreSQL, the backend on port 8080 and optionally the frontend.)
 
 ## Revoking
 
@@ -83,7 +84,7 @@ Settings → Claude / MCP → **Revoke token** (or **Generate new token**, which
 
 ## Troubleshooting
 
-- **"Could not connect to the local Job Hunter backend."** — start the database and backend; check the URL and port in the extension settings. If `localhost` does not work, try `http://127.0.0.1:8080` (the backend listens on IPv4 localhost only).
+- **"Could not connect to the local Job Hunter backend."** — make sure the Docker stack is running (`docker compose ps` in `job-hunter-server`, backend `healthy`); check the URL and port in the extension settings. If `localhost` does not work, try `http://127.0.0.1:8080` (the backend is published on IPv4 localhost only).
 - **"Job Hunter authentication failed…"** — the token is missing, revoked or replaced; generate a new one and update the extension settings.
 - **Extension fails to start / tool missing** — Claude Desktop's developer/extension settings show the server status and logs; a missing token is reported as `JOB_HUNTER_TOKEN is not set`. Start a new chat after installing.
 - **"Job Hunter rejected the job: …"** — the backend's normal Add Job validation applied (e.g. a URL must start with `http://` or `https://`).

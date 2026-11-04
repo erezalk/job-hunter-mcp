@@ -1,0 +1,17 @@
+.git
+.gitignore
+.idea
+.vscode
+.DS_Store
+*.log
+coverage
+
+node_modules
+
+# Build output is produced inside the image
+bundle/server
+*.mcpb
+
+# Local configuration (holds the integration token)
+.env
+.env.*

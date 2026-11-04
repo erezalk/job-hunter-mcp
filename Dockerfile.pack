@@ -1,0 +1,21 @@
+# syntax=docker/dockerfile:1
+#
+# Builds job-hunter-mcp.mcpb without Node.js or npm on your machine:
+#
+#   docker build -f Dockerfile.pack --output type=local,dest=. .
+#
+# The finished extension is written to ./job-hunter-mcp.mcpb. Nothing else leaves the build.
+
+FROM node:22-alpine AS build
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN --mount=type=cache,target=/root/.npm npm ci
+
+COPY bundle/manifest.json bundle/manifest.json
+COPY scripts scripts
+COPY src src
+RUN npm run pack
+
+FROM scratch AS mcpb
+COPY --from=build /app/job-hunter-mcp.mcpb /job-hunter-mcp.mcpb

@@ -1,6 +1,6 @@
 # Job Hunter — MCP server
 
-A local **stdio** [MCP](https://modelcontextprotocol.io) server that lets Claude Desktop add jobs to a Job Hunter Board and see which companies are already in the account. It exposes exactly two tools, `add_job` and the read-only `get_companies`, and talks only to your own Job Hunter backend (`job-hunter-server`). Step-by-step setup: [SETUP.md](SETUP.md).
+A local **stdio** [MCP](https://modelcontextprotocol.io) server that lets Claude Desktop add jobs to a Job Hunter Board and see which companies are already in the account. It exposes exactly two tools, `add_job` and the read-only `get_companies`, and talks only to your own Job Hunter backend (`job-hunter-server`). Step-by-step setup: [SETUP.md](SETUP.md). To run Job Hunter itself, use the **Quick Start with Docker** in the `job-hunter-server` README; this server then talks to the Dockerized backend at `http://localhost:8080`.
 
 ## How it works
 
@@ -51,9 +51,19 @@ An empty account gives `No companies exist in Job Hunter yet.` Authentication, c
 
 In Claude Desktop both come from the extension settings (the token field is marked sensitive and kept in the OS secure storage). A local `.env` (copy `.env.example`) is only a convenience for development runs such as the MCP Inspector.
 
+## Building the extension
+
+Normal users do not need Node.js or npm: Docker builds `job-hunter-mcp.mcpb` for you (the file is not committed to Git).
+
+```bash
+docker build -f Dockerfile.pack --output type=local,dest=. .
+```
+
+Claude Desktop runs the installed extension itself; see [SETUP.md](SETUP.md) for the host requirements.
+
 ## Development
 
-Requires Node.js 20+.
+Requires Node.js 20+ (contributors only).
 
 ```bash
 npm install
