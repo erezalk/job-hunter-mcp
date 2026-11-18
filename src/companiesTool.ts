@@ -5,13 +5,18 @@ import type { Config } from './config.js'
 export const GET_COMPANIES_TOOL_NAME = 'get_companies'
 
 export const GET_COMPANIES_DESCRIPTION =
-  "List the names of the companies that already exist in the user's Job Hunter account (read-only; takes no arguments). " +
-  'A company is listed once if the user has at least one job there, whatever that job\'s status ' +
-  '(New, applied, interviewing, offer, Rejected, Archived or Low Match). ' +
+  "List the companies already on the user's Job Hunter board, each with the titles of all its job positions there " +
+  '(read-only; takes no arguments). Returns a JSON array like ' +
+  '[{"company": "Acme", "positions": ["Senior Backend Engineer", "Platform Engineer"]}]: each company appears once, ' +
+  'with no position title repeated, and nothing else (no ids, URLs, statuses or scores). ' +
+  'Every job on the board is included whatever its status (New, applied, interviewing, offer, Rejected, Archived or Low Match), ' +
+  'so a listed company or position may be one the user already rejected or that was a low match. ' +
   "The list always belongs to the owner of the configured Job Hunter integration token; you never need or can choose a user. " +
-  'Use it during job discovery when the user wants to avoid companies they have already considered. ' +
-  'It only returns the existing companies: you decide which ones to exclude from the user\'s request, ' +
-  'and should compare names case-insensitively and allow for minor spelling variants (e.g. "Acme" vs "Acme Inc.").'
+  'Call it before or during job discovery to identify companies already on the board and to avoid suggesting or adding ' +
+  'positions that are already there (do not call add_job for a company + title already listed). ' +
+  'It does no filtering itself: you decide what to exclude from the user\'s request (whole companies, or only the listed positions), ' +
+  'and should compare names and titles case-insensitively and allow for minor variants ' +
+  '(e.g. "Acme" vs "Acme Inc.", "Sr. Backend Engineer" vs "Senior Backend Engineer").'
 
 export function describeCompanies(outcome: GetCompaniesOutcome): ToolResult {
   const text = (value: string, isError = false): ToolResult => ({
@@ -20,11 +25,7 @@ export function describeCompanies(outcome: GetCompaniesOutcome): ToolResult {
   })
   switch (outcome.kind) {
     case 'companies':
-      return text(
-        outcome.names.length === 0
-          ? 'No companies exist in Job Hunter yet.'
-          : `Companies already in Job Hunter (${outcome.names.length}):\n${outcome.names.map((name) => `- ${name}`).join('\n')}`,
-      )
+      return text(JSON.stringify(outcome.companies, null, 2))
     case 'auth':
       return text(
         'Job Hunter authentication failed. The integration token may be missing, invalid, replaced, or revoked.',

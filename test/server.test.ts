@@ -28,15 +28,17 @@ describe('MCP server', () => {
     expect(schema.required ?? []).toEqual([])
   })
 
-  it('calls the companies endpoint through get_companies and returns the list', async () => {
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
-      new Response(JSON.stringify({ companies: [{ name: 'Acme' }, { name: 'Beta' }] }), { status: 200 }),
-    )
+  it('calls the companies endpoint through get_companies and returns each company with its positions', async () => {
+    const companies = [
+      { company: 'Acme', positions: ['Backend Engineer', 'Platform Engineer'] },
+      { company: 'Beta', positions: ['Java Developer'] },
+    ]
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify(companies), { status: 200 }))
     const client = await connect(fetchMock)
     const result = await client.callTool({ name: 'get_companies', arguments: {} })
 
     expect(result.isError).toBeFalsy()
-    expect(result.content).toEqual([{ type: 'text', text: 'Companies already in Job Hunter (2):\n- Acme\n- Beta' }])
+    expect(result.content).toEqual([{ type: 'text', text: JSON.stringify(companies, null, 2) }])
     expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(fetchMock.mock.calls[0]![0]).toBe('http://localhost:8080/api/integrations/companies')
     expect(fetchMock.mock.calls[0]![1]!.method).toBe('GET')

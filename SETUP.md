@@ -23,7 +23,7 @@ Contributors who run the backend/frontend from source instead should use "Manual
 2. Go to **Settings → Claude / MCP** and click **Generate token**.
 3. Click **Copy**. The token starts with `jh_` and is shown **only once**; if you lose it, generate a new one.
 
-Jobs added with this token go to the Board of the account that generated it, and `get_companies` lists that account's companies. The token does not expire; it works until you revoke it or generate a new one.
+Jobs added with this token go to the Board of the account that generated it, and `get_companies` lists that account's companies with their positions. The token does not expire; it works until you revoke it or generate a new one.
 
 ## 3. Build the extension
 
@@ -66,7 +66,7 @@ To see which companies you already have (useful to avoid them during job discove
 
 > List the companies I already have in Job Hunter, then find me new backend roles at other companies.
 
-Claude calls `get_companies` (read-only, no arguments), which returns the names of every company in your account regardless of job status, and uses them to exclude companies itself.
+Claude calls `get_companies` (read-only, no arguments), which returns every company on your board with the titles of its positions, regardless of job status, and uses them to exclude companies or positions itself.
 
 ## What must be running
 

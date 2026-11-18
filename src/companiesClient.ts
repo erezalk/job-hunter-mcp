@@ -1,13 +1,22 @@
 import { TIMEOUT_MS } from './addJobClient.js'
 import type { Config } from './config.js'
 
+/** A company on the user's board with the distinct titles of all their jobs there. */
+export interface CompanyPositions {
+  company: string
+  positions: string[]
+}
+
 export type GetCompaniesOutcome =
-  | { kind: 'companies'; names: string[] }
+  | { kind: 'companies'; companies: CompanyPositions[] }
   | { kind: 'auth' }
   | { kind: 'unavailable' }
   | { kind: 'error' }
 
-// Names of the companies the integration token's owner already has in Job Hunter.
+const singleLine = (value: unknown): string | null =>
+  typeof value === 'string' && value.trim().length > 0 ? value.replace(/\s+/g, ' ').trim() : null
+
+// The companies the integration token's owner already has in Job Hunter, each with its position titles.
 // Read-only: no body, no parameters, and in particular nothing that could select a user.
 export async function getCompanies(config: Config, fetchImpl: typeof fetch = fetch): Promise<GetCompaniesOutcome> {
   let response: Response
@@ -28,14 +37,16 @@ export async function getCompanies(config: Config, fetchImpl: typeof fetch = fet
   if (response.status !== 200) return { kind: 'error' }
 
   const body: unknown = await response.json().catch(() => null)
-  const companies = (body as { companies?: unknown } | null)?.companies
-  // A 200 without a companies array is a malformed answer, never "no companies".
-  if (!Array.isArray(companies)) return { kind: 'error' }
+  // A 200 that is not an array is a malformed answer, never "no companies".
+  if (!Array.isArray(body)) return { kind: 'error' }
 
-  const names = companies.flatMap((entry) => {
-    const name = (entry as { name?: unknown } | null)?.name
-    // Single-line names only: the list is rendered as one company per line.
-    return typeof name === 'string' && name.trim().length > 0 ? [name.replace(/\s+/g, ' ').trim()] : []
+  const companies = body.flatMap((entry): CompanyPositions[] => {
+    const { company, positions } = (entry ?? {}) as { company?: unknown; positions?: unknown }
+    const name = singleLine(company)
+    if (name === null) return []
+    const titles = Array.isArray(positions) ? positions.map(singleLine).filter((t): t is string => t !== null) : []
+    // Only the company name and its distinct titles are passed on; anything else in the entry is dropped.
+    return [{ company: name, positions: [...new Set(titles)] }]
   })
-  return { kind: 'companies', names }
+  return { kind: 'companies', companies }
 }
