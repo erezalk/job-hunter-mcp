@@ -17,7 +17,7 @@ const text = (result: Awaited<ReturnType<typeof runGetCompanies>>) => result.con
 
 describe('get_companies request', () => {
   it('GETs the integration endpoint with the Bearer token, no body and nothing that selects a user', async () => {
-    const fetchMock = respond(200, { companies: [] })
+    const fetchMock = respond(200, [])
     await getCompanies(config, fetchMock)
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
@@ -29,38 +29,53 @@ describe('get_companies request', () => {
   })
 
   it('uses the configured base URL', async () => {
-    const fetchMock = respond(200, { companies: [] })
+    const fetchMock = respond(200, [])
     await getCompanies({ ...config, baseUrl: 'https://jobs.example.com/hunter' }, fetchMock)
     expect(fetchMock.mock.calls[0]![0]).toBe('https://jobs.example.com/hunter/api/integrations/companies')
   })
 })
 
 describe('get_companies results', () => {
-  it('lists the company names in the backend order', async () => {
-    const result = await runGetCompanies(
-      config,
-      respond(200, { companies: [{ name: 'Acme' }, { name: 'beta Inc' }, { name: 'Zeta Corp' }] }),
-    )
+  it('returns each company with its positions as JSON, in the backend order', async () => {
+    const companies = [
+      { company: 'Scalable Capital', positions: ['Senior Java Backend Engineer', 'Senior Kotlin Developer'] },
+      { company: 'N26', positions: ['Senior Backend Engineer'] },
+    ]
+    const result = await runGetCompanies(config, respond(200, companies))
     expect(result.isError).toBeUndefined()
-    expect(text(result)).toBe('Companies already in Job Hunter (3):\n- Acme\n- beta Inc\n- Zeta Corp')
+    expect(JSON.parse(text(result))).toEqual(companies)
+    expect(text(result)).toBe(JSON.stringify(companies, null, 2))
   })
 
-  it('says so when there are no companies (not an error)', async () => {
-    const result = await runGetCompanies(config, respond(200, { companies: [] }))
+  it('returns an empty array when there are no companies (not an error)', async () => {
+    const result = await runGetCompanies(config, respond(200, []))
     expect(result.isError).toBeUndefined()
-    expect(text(result)).toBe('No companies exist in Job Hunter yet.')
+    expect(JSON.parse(text(result))).toEqual([])
   })
 
-  it('keeps one company per line and ignores malformed entries', async () => {
+  it('keeps only company names and distinct single-line titles, dropping malformed entries and extra fields', async () => {
     const result = await runGetCompanies(
       config,
-      respond(200, { companies: [{ name: 'Multi\nLine  Co' }, { name: '' }, { name: 7 }, null, {}, { name: 'Acme' }] }),
+      respond(200, [
+        { company: 'Multi\nLine  Co', positions: ['Dev', ' Dev ', '', 7, null, 'Lead\n Dev'], id: 3, url: 'https://x' },
+        { company: '' },
+        { company: 7, positions: ['Dev'] },
+        null,
+        {},
+        { company: 'Acme' },
+        { company: 'Beta', positions: 'Dev', status: 'REJECTED', fitScore: 40 },
+      ]),
     )
-    expect(text(result)).toBe('Companies already in Job Hunter (2):\n- Multi Line Co\n- Acme')
+    expect(JSON.parse(text(result))).toEqual([
+      { company: 'Multi Line Co', positions: ['Dev', 'Lead Dev'] },
+      { company: 'Acme', positions: [] },
+      { company: 'Beta', positions: [] },
+    ])
+    expect(text(result)).not.toMatch(/"id"|"url"|"status"|fitScore/)
   })
 
   it('never turns a malformed 200 into "no companies"', async () => {
-    for (const body of [{}, { companies: 'Acme' }, { companies: null }, 'not json', '']) {
+    for (const body of [{}, { companies: [] }, 'not json', '', null, 'Acme']) {
       const result = await runGetCompanies(config, respond(200, body))
       expect(result.isError).toBe(true)
       expect(text(result)).toBe('Job Hunter could not list the companies because of an unexpected backend error. Try again later.')
@@ -89,7 +104,7 @@ describe('get_companies results', () => {
 
   it('never leaks the token in any outcome', async () => {
     for (const fetchMock of [
-      respond(200, { companies: [{ name: 'Acme' }] }),
+      respond(200, [{ company: 'Acme', positions: ['Dev'] }]),
       respond(401, { token: 'jh_SECRET_TOKEN_VALUE' }),
       respond(500, 'jh_SECRET_TOKEN_VALUE'),
       vi.fn<typeof fetch>().mockRejectedValue(new Error('connect ECONNREFUSED jh_SECRET_TOKEN_VALUE')),

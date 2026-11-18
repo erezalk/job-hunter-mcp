@@ -1,6 +1,6 @@
 # Job Hunter — MCP server
 
-A local **stdio** [MCP](https://modelcontextprotocol.io) server that lets Claude Desktop add jobs to a Job Hunter Board and see which companies are already in the account. It exposes exactly two tools, `add_job` and the read-only `get_companies`, and talks only to your own Job Hunter backend (`job-hunter-server`). Step-by-step setup: [SETUP.md](SETUP.md). To run Job Hunter itself, use the **Quick Start with Docker** in the `job-hunter-server` README; this server then talks to the Dockerized backend at `http://localhost:8080`.
+A local **stdio** [MCP](https://modelcontextprotocol.io) server that lets Claude Desktop add jobs to a Job Hunter Board and see which companies and positions are already in the account. It exposes exactly two tools, `add_job` and the read-only `get_companies`, and talks only to your own Job Hunter backend (`job-hunter-server`). Step-by-step setup: [SETUP.md](SETUP.md). To run Job Hunter itself, use the **Quick Start with Docker** in the `job-hunter-server` README; this server then talks to the Dockerized backend at `http://localhost:8080`.
 
 ## How it works
 
@@ -12,8 +12,8 @@ Claude Desktop ──stdio──► job-hunter-mcp ──POST /api/integrations/
 
 - Claude Desktop starts the server from a `.mcpb` extension; there is no HTTP server inside. stdout carries only the MCP protocol; diagnostics go to stderr.
 - The backend authenticates the request with a personal integration token and runs the same "add job and track" logic as the Board's Add Job button: the job is created (or found as a duplicate among that user's own jobs) and lands in **New** on the Board of the user who owns the token; it is never matched against, or attached to, another user's jobs. The tool has no user/owner field, and the job's Source is set to "External AI" by the backend.
-- The token is generated in Job Hunter (Settings → Claude / MCP), shown once, and stored server-side only as a SHA-256 digest. One token per user; generating a new one invalidates the old one; it can be revoked at any time and does not expire otherwise. It is accepted on `/api/integrations/**` only and permits exactly two things: adding a job and reading the names of the account's companies — it cannot read the Board, jobs, CV, settings or keys.
-- The server holds no validation, normalization or duplicate rules of its own; the backend decides. Results are returned to Claude as short text: for `add_job` added, already exists (not an error), validation problems, authentication failed, backend unreachable, or unexpected error; `get_companies` returns the list or the authentication / unreachable / unexpected-error messages. Raw backend responses and the token are never returned or logged.
+- The token is generated in Job Hunter (Settings → Claude / MCP), shown once, and stored server-side only as a SHA-256 digest. One token per user; generating a new one invalidates the old one; it can be revoked at any time and does not expire otherwise. It is accepted on `/api/integrations/**` only and permits exactly two things: adding a job and reading the account's company names with their job titles — it cannot read the Board, jobs, CV, settings or keys.
+- The server holds no validation, normalization or duplicate rules of its own; the backend decides. Results are returned to Claude as short text: for `add_job` added, already exists (not an error), validation problems, authentication failed, backend unreachable, or unexpected error; `get_companies` returns the companies with their positions as JSON, or the authentication / unreachable / unexpected-error messages. Raw backend responses and the token are never returned or logged.
 
 ## The `add_job` tool
 
@@ -29,18 +29,29 @@ An evaluation is stored as an **External AI** match on the new ticket. Job Hunte
 
 ## The `get_companies` tool
 
-Read-only, **no arguments**. Returns the names of the companies the token's owner already has in Job Hunter — each company once, sorted alphabetically (case-insensitive), whatever the status of the jobs there (New, in progress, Offer, Rejected, Archived, Low Match). Nothing else is returned: no ids, jobs, statuses or other users' data, and the tool cannot choose a user. It exists so that during job discovery you can ask Claude to skip companies you have already considered; the tool does no filtering itself — Claude decides what to exclude from your request.
+Read-only, **no arguments**. Returns the companies on the token owner's Job Hunter board, each once with the titles of all its job positions (no title repeated), sorted alphabetically (case-insensitive), whatever the status of the jobs (New, in progress, Offer, Rejected, Archived, Low Match). Nothing else is returned: no ids, URLs, statuses, scores or other users' data, and the tool cannot choose a user. It exists so that during job discovery Claude can identify companies already on the board and avoid rediscovering positions that are already there; the tool does no filtering itself — Claude decides what to exclude from your request.
 
-Example result:
+Example result (the tool returns this JSON as text):
 
+```json
+[
+  {
+    "company": "N26",
+    "positions": [
+      "Senior Backend Engineer"
+    ]
+  },
+  {
+    "company": "Scalable Capital",
+    "positions": [
+      "Senior Java Backend Engineer",
+      "Senior Kotlin Developer"
+    ]
+  }
+]
 ```
-Companies already in Job Hunter (3):
-- Acme
-- beta Inc
-- Zeta Corp
-```
 
-An empty account gives `No companies exist in Job Hunter yet.` Authentication, connection and backend errors are reported as tool errors in the same wording as `add_job`.
+An empty account gives `[]`. Authentication, connection and backend errors are reported as tool errors in the same wording as `add_job`.
 
 ## Configuration
 
