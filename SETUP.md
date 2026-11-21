@@ -70,12 +70,14 @@ To see which companies you already have (useful to avoid them during job discove
 
 Claude calls `get_companies` (read-only, no arguments), which returns every company on your board with the titles of its positions, regardless of job status, and uses them to exclude companies or positions itself.
 
+To skip companies in every job search, add them in Job Hunter under **Settings → Job Discovery → Excluded Companies**. Claude calls `get_excluded_companies` (read-only, no arguments) together with `get_companies` before searching and leaves those companies out. This never changes your Board, and you can still add a job at an excluded company yourself (or ask Claude to add a specific one).
+
 ## What must be running
 
-| Component | Needed for `add_job` and `get_companies` |
+| Component | Needed for `add_job`, `get_companies` and `get_excluded_companies` |
 |---|---|
 | Docker stack (`docker compose up`) | Yes: the `backend` and `postgres` containers |
-| `web` container (http://localhost:3000) | Only to manage the token or look at the Board |
+| `web` container (http://localhost:3000) | Only to manage the token, edit Excluded Companies or look at the Board |
 | job-hunter-mcp | Started by Claude Desktop |
 
 (Manual development: PostgreSQL, the backend on port 8080 and optionally the frontend.)

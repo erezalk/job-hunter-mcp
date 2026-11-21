@@ -13,7 +13,9 @@ export const ADD_JOB_DESCRIPTION =
   'If, and only if, you have actually evaluated this job against the user\'s CV/context, you may also pass your evaluation ' +
   '(fitScore, matchingSkills, missingSkills, concerns, evaluationModel); Job Hunter stores it as an "External AI" match shown in the ticket\'s AI match section ' +
   'and does not re-evaluate it. Never invent a fit score or match/gap details; omit every evaluation field when you have not evaluated the job. ' +
-  'The job\'s source is set by Job Hunter; you do not provide it.'
+  'The job\'s source is set by Job Hunter; you do not provide it. ' +
+  'During job discovery, call get_companies and get_excluded_companies first and do not add positions at excluded companies; ' +
+  'Job Hunter does not block them, so a job at an excluded company that the user explicitly asks for can still be added.'
 
 export const addJobInputSchema = z.object({
   title: z.string().describe('Job title exactly as published, e.g. "Senior Backend Engineer". Required.'),

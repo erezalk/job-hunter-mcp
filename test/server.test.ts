@@ -13,9 +13,72 @@ async function connect(fetchImpl: typeof fetch = fetch) {
 }
 
 describe('MCP server', () => {
-  it('exposes exactly two tools: add_job and the read-only get_companies', async () => {
+  it('exposes exactly three tools: add_job and the read-only get_companies and get_excluded_companies', async () => {
     const { tools } = await (await connect()).listTools()
-    expect(tools.map((t) => t.name)).toEqual(['add_job', 'get_companies'])
+    expect(tools.map((t) => t.name)).toEqual(['add_job', 'get_companies', 'get_excluded_companies'])
+  })
+
+  it('tells the client to call both read-only tools before searching for jobs', async () => {
+    const instructions = (await connect()).getInstructions()
+    expect(instructions).toMatch(/always call get_companies .* and get_excluded_companies/)
+    expect(instructions).toMatch(/add_job is never blocked for an excluded company/)
+  })
+
+  it('registers get_excluded_companies as a read-only tool that takes no arguments', async () => {
+    const { tools } = await (await connect()).listTools()
+    const tool = tools.find((t) => t.name === 'get_excluded_companies')!
+
+    expect(tool.annotations?.readOnlyHint).toBe(true)
+    expect(tool.description).toMatch(/skipped entirely during job searches/)
+    const schema = tool.inputSchema as { properties?: Record<string, unknown>; required?: string[] }
+    expect(Object.keys(schema.properties ?? {})).toEqual([])
+    expect(schema.required ?? []).toEqual([])
+  })
+
+  it('offers no tool that edits the exclusion list', async () => {
+    const { tools } = await (await connect()).listTools()
+    const writeTools = tools.filter((t) => /exclu/i.test(t.name) && t.name !== 'get_excluded_companies')
+    expect(writeTools).toEqual([])
+  })
+
+  it('calls the excluded-companies endpoint through get_excluded_companies and returns the names', async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response(JSON.stringify(['PPRO', 'Flix', 'Example Company']), { status: 200 }))
+    const client = await connect(fetchMock)
+    const result = await client.callTool({ name: 'get_excluded_companies', arguments: {} })
+
+    expect(result.isError).toBeFalsy()
+    expect(result.content).toEqual([{ type: 'text', text: '["PPRO","Flix","Example Company"]' }])
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock.mock.calls[0]![0]).toBe('http://localhost:8080/api/integrations/excluded-companies')
+    expect(fetchMock.mock.calls[0]![1]!.method).toBe('GET')
+  })
+
+  it('reports authentication and backend failures from get_excluded_companies as tool errors', async () => {
+    const unauthorized = await connect(vi.fn<typeof fetch>().mockResolvedValue(new Response('{}', { status: 401 })))
+    const auth = await unauthorized.callTool({ name: 'get_excluded_companies', arguments: {} })
+    expect(auth.isError).toBe(true)
+    expect(JSON.stringify(auth.content)).toContain('Job Hunter authentication failed')
+
+    const failing = await connect(vi.fn<typeof fetch>().mockResolvedValue(new Response('boom', { status: 500 })))
+    const error = await failing.callTool({ name: 'get_excluded_companies', arguments: {} })
+    expect(error.isError).toBe(true)
+    expect(JSON.stringify(error.content)).toContain('could not list the excluded companies')
+  })
+
+  it('does not block add_job for an excluded company', async () => {
+    const fetchMock = vi.fn<typeof fetch>(async (url) =>
+      String(url).endsWith('/excluded-companies')
+        ? new Response(JSON.stringify(['Flix']), { status: 200 })
+        : new Response(JSON.stringify({ created: true, title: 'Dev', companyName: 'Flix', statusLabel: 'New' }), { status: 201 }),
+    )
+    const client = await connect(fetchMock)
+    await client.callTool({ name: 'get_excluded_companies', arguments: {} })
+    const result = await client.callTool({ name: 'add_job', arguments: { title: 'Dev', companyName: 'Flix' } })
+
+    expect(result.content).toEqual([{ type: 'text', text: 'Added: Dev - Flix. Status: New.' }])
+    expect(fetchMock.mock.calls[1]![0]).toBe('http://localhost:8080/api/integrations/jobs')
   })
 
   it('registers get_companies as a read-only tool that takes no arguments', async () => {

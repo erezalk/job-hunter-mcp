@@ -1,7 +1,7 @@
 {
   "name": "job-hunter-mcp",
-  "version": "1.2.0",
-  "description": "Local stdio MCP server that lets Claude Desktop add jobs (optionally with an already-calculated fit evaluation) to the Job Hunter Board (add_job) and list the companies and their positions already in the account (get_companies).",
+  "version": "1.3.0",
+  "description": "Local stdio MCP server that lets Claude Desktop add jobs (optionally with an already-calculated fit evaluation) to the Job Hunter Board (add_job) and list the companies and their positions already in the account (get_companies) and the companies excluded from job discovery (get_excluded_companies).",
   "private": true,
   "type": "module",
   "engines": { "node": ">=20" },

@@ -10,7 +10,7 @@ describe('bundled stdio server', () => {
     execFileSync('node', ['scripts/build.mjs'], { stdio: 'inherit' })
   }, 60_000)
 
-  it('starts, initializes and lists add_job and get_companies; stdout stays pure protocol', async () => {
+  it('starts, initializes and lists add_job, get_companies and get_excluded_companies; stdout stays pure protocol', async () => {
     const transport = new StdioClientTransport({
       command: 'node',
       args: ['bundle/server/index.js'],
@@ -19,7 +19,7 @@ describe('bundled stdio server', () => {
     })
     const client = new Client({ name: 'test', version: '0' })
     await client.connect(transport)
-    expect((await client.listTools()).tools.map((t) => t.name)).toEqual(['add_job', 'get_companies'])
+    expect((await client.listTools()).tools.map((t) => t.name)).toEqual(['add_job', 'get_companies', 'get_excluded_companies'])
 
     const result = await client.callTool({ name: 'add_job', arguments: { title: 'Dev' } })
     expect(result.isError).toBe(true)
@@ -28,6 +28,10 @@ describe('bundled stdio server', () => {
     const companies = await client.callTool({ name: 'get_companies', arguments: {} })
     expect(companies.isError).toBe(true)
     expect(JSON.stringify(companies.content)).toContain('Could not connect to the local Job Hunter backend')
+
+    const excluded = await client.callTool({ name: 'get_excluded_companies', arguments: {} })
+    expect(excluded.isError).toBe(true)
+    expect(JSON.stringify(excluded.content)).toContain('Could not connect to the local Job Hunter backend')
     await client.close()
   }, 30_000)
 
