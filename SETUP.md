@@ -23,7 +23,7 @@ Contributors who run the backend/frontend from source instead should use "Manual
 2. Go to **Settings → Claude / MCP**, optionally enter a name such as `Claude Desktop`, and click **Generate token**.
 3. Click **Copy**. The token starts with `jh_` and is shown **only once**; if you lose it, use **Regenerate** on that token to get a new secret.
 
-Jobs added with this token go to the Board of the account that generated it, and `get_companies` lists that account's companies with their positions. The token does not expire; it works until you revoke or regenerate it.
+Jobs added with this token go to the Board of the account that generated it, `get_companies` lists that account's companies with their positions, `get_cv` reads that account's CV, and `get_search_prompt` reads that account's saved search instructions. The token does not expire; it works until you revoke or regenerate it.
 
 You can have several tokens at the same time. Give each client its own (for example one named `Claude Desktop` and one named `Codex`): renaming, regenerating or revoking one token never affects the others.
 
@@ -70,14 +70,26 @@ To see which companies you already have (useful to avoid them during job discove
 
 Claude calls `get_companies` (read-only, no arguments), which returns every company on your board with the titles of its positions, regardless of job status, and uses them to exclude companies or positions itself.
 
-To skip companies in every job search, add them in Job Hunter under **Settings → Job Discovery → Excluded Companies**. Claude calls `get_excluded_companies` (read-only, no arguments) together with `get_companies` before searching and leaves those companies out. This never changes your Board, and you can still add a job at an excluded company yourself (or ask Claude to add a specific one).
+To skip companies in every job search, add them in Job Hunter under **Settings → Job Search → Excluded Companies**. Claude calls `get_excluded_companies` (read-only, no arguments) together with `get_companies` before searching and leaves those companies out. This never changes your Board, and you can still add a job at an excluded company yourself (or ask Claude to add a specific one).
+
+To evaluate positions against your CV, upload it once on Job Hunter's **CV page** (replace it there whenever it changes):
+
+> Read my CV from Job Hunter and tell me which of these three postings fits me best.
+
+Claude calls `get_cv` (read-only, no arguments) and gets the file name and the complete text extracted from your PDF, always the latest uploaded version. The original PDF is also available as the MCP resource `jobhunter://cv/current.pdf`, but neither Claude Desktop nor Codex is verified to read a PDF resource natively, so the extracted text is what they reliably use. A scanned (image-only) PDF yields little or no text: re-export it as a text-based PDF and upload it again.
+
+To keep your search instructions in one place, write them in Job Hunter under **Settings → Job Search → Search Prompt** (free text: paragraphs, Markdown, numbered lists — whatever you like) and click **Save**. Then:
+
+> Run my saved Job Hunter job search.
+
+Claude calls `get_search_prompt` (read-only, no arguments), receives your text exactly as saved, and follows it with `get_cv`, `get_companies`, `get_excluded_companies` and `add_job`. Edits are picked up on the next call; there is nothing to rebuild or restart. The tool itself never searches or adds anything — Claude only acts on the instructions when you ask it to.
 
 ## What must be running
 
-| Component | Needed for `add_job`, `get_companies` and `get_excluded_companies` |
+| Component | Needed for `add_job`, `get_companies`, `get_excluded_companies`, `get_cv` and `get_search_prompt` |
 |---|---|
 | Docker stack (`docker compose up`) | Yes: the `backend` and `postgres` containers |
-| `web` container (http://localhost:3000) | Only to manage the token, edit Excluded Companies or look at the Board |
+| `web` container (http://localhost:3000) | Only to manage the token, edit Excluded Companies or the Search Prompt, upload/replace the CV or look at the Board |
 | job-hunter-mcp | Started by Claude Desktop |
 
 (Manual development: PostgreSQL, the backend on port 8080 and optionally the frontend.)
@@ -93,6 +105,8 @@ args = ["/absolute/path/to/job-hunter-mcp/bundle/server/index.js"]
 env = { JOB_HUNTER_BASE_URL = "http://localhost:8080", JOB_HUNTER_TOKEN = "jh_..." }
 ```
 
+Codex runs `bundle/server/index.js` directly, so after rebuilding it (`npm run build` or `npm run pack`) restart Codex (or start a new session) to pick up new tools such as `get_cv` and `get_search_prompt`. Existing environment variables and tokens stay as they are.
+
 ## Revoking and regenerating
 
 Settings → Claude / MCP lists your active tokens. Each one has **Revoke** (deletes it) and **Regenerate** (keeps its name, issues a new secret and invalidates the old one); both ask for confirmation, take effect immediately and affect only that token. After regenerating, enter the new secret in the settings of the client that used it.
@@ -102,5 +116,8 @@ Settings → Claude / MCP lists your active tokens. Each one has **Revoke** (del
 - **"Could not connect to the local Job Hunter backend."** — make sure the Docker stack is running (`docker compose ps` in `job-hunter-server`, backend `healthy`); check the URL and port in the extension settings. If `localhost` does not work, try `http://127.0.0.1:8080` (the backend is published on IPv4 localhost only).
 - **"Job Hunter authentication failed…"** — the token is missing, revoked or regenerated; check Settings → Claude / MCP (the list shows the last 4 characters of each token), regenerate or generate a token and update the client's settings.
 - **Extension fails to start / tool missing** — Claude Desktop's developer/extension settings show the server status and logs; a missing token is reported as `JOB_HUNTER_TOKEN is not set`. Start a new chat after installing.
+- **"No CV has been uploaded to Job Hunter yet."** — upload your CV on Job Hunter's CV page; `get_cv` returns it immediately afterwards.
+- **"No search prompt has been configured in Job Hunter yet."** — write and save your instructions under Settings → Job Search → Search Prompt.
+- **"This Job Hunter backend does not support CV retrieval yet."** / **"… does not support search prompts yet."** — the MCP extension is newer than the backend; rebuild and restart the backend (`docker compose up --build`).
 - **"Job Hunter rejected the job: …"** — the backend's normal Add Job validation applied (e.g. a URL must start with `http://` or `https://`).
 - **Testing without Claude Desktop** — `cp .env.example .env`, set `JOB_HUNTER_TOKEN`, then `npm run inspect` to use the official MCP Inspector. Never commit `.env`.
