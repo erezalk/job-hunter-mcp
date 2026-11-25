@@ -13,9 +13,145 @@ async function connect(fetchImpl: typeof fetch = fetch) {
 }
 
 describe('MCP server', () => {
-  it('exposes exactly three tools: add_job and the read-only get_companies and get_excluded_companies', async () => {
+  it('exposes exactly five tools: add_job and the read-only get_companies, get_excluded_companies, get_cv and get_search_prompt', async () => {
     const { tools } = await (await connect()).listTools()
-    expect(tools.map((t) => t.name)).toEqual(['add_job', 'get_companies', 'get_excluded_companies'])
+    expect(tools.map((t) => t.name)).toEqual(['add_job', 'get_companies', 'get_excluded_companies', 'get_cv', 'get_search_prompt'])
+  })
+
+  it('reports the server version', async () => {
+    expect((await connect()).getServerVersion()).toEqual({ name: 'job-hunter', version: '1.5.1' })
+  })
+
+  it('tells the client get_search_prompt only retrieves the saved instructions', async () => {
+    const instructions = (await connect()).getInstructions()
+    expect(instructions).toMatch(/call get_search_prompt and follow the instructions it returns/)
+    expect(instructions).toMatch(/get_search_prompt only retrieves the instructions and never acts on its own/)
+  })
+
+  it('registers get_search_prompt as a read-only tool that takes no arguments', async () => {
+    const { tools } = await (await connect()).listTools()
+    const tool = tools.find((t) => t.name === 'get_search_prompt')!
+
+    expect(tool.annotations?.readOnlyHint).toBe(true)
+    expect(tool.description).toMatch(/saved Job Hunter search instructions/)
+    const schema = tool.inputSchema as { properties?: Record<string, unknown>; required?: string[] }
+    expect(Object.keys(schema.properties ?? {})).toEqual([])
+    expect(schema.required ?? []).toEqual([])
+  })
+
+  it('returns the saved prompt verbatim through a normal get_search_prompt call, re-fetched on every call', async () => {
+    let prompt = '# Search\n\n1. Java roles in Berlin\n2. Skip agencies'
+    const fetchMock = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ prompt, updatedAt: null }), { status: 200 }))
+    const client = await connect(fetchMock)
+
+    const first = await client.callTool({ name: 'get_search_prompt', arguments: {} })
+    expect(first.isError).toBeFalsy()
+    expect(first.content).toEqual([{ type: 'text', text: '# Search\n\n1. Java roles in Berlin\n2. Skip agencies' }])
+    expect(fetchMock.mock.calls[0]![0]).toBe('http://localhost:8080/api/integrations/search-prompt')
+
+    prompt = 'Updated in the UI'
+    const second = await client.callTool({ name: 'get_search_prompt', arguments: {} })
+    expect(second.content).toEqual([{ type: 'text', text: 'Updated in the UI' }])
+    // Retrieving the prompt never calls anything else (no search, no add_job).
+    expect(fetchMock.mock.calls.map((c) => String(c[0]))).toEqual([
+      'http://localhost:8080/api/integrations/search-prompt',
+      'http://localhost:8080/api/integrations/search-prompt',
+    ])
+  })
+
+  it('reports a missing prompt, authentication and backend failures from get_search_prompt as tool errors', async () => {
+    const cases: [Response, string][] = [
+      [new Response(JSON.stringify({ code: 'SEARCH_PROMPT_NOT_FOUND' }), { status: 404 }), 'No search prompt has been configured'],
+      [new Response('{}', { status: 401 }), 'Job Hunter authentication failed'],
+      [new Response('boom', { status: 500 }), 'could not retrieve the search prompt'],
+    ]
+    for (const [response, message] of cases) {
+      const client = await connect(vi.fn<typeof fetch>().mockResolvedValue(response))
+      const result = await client.callTool({ name: 'get_search_prompt', arguments: {} })
+      expect(result.isError).toBe(true)
+      expect(JSON.stringify(result.content)).toContain(message)
+    }
+  })
+
+  it('tells the client to use get_cv as the source for fit evaluation', async () => {
+    expect((await connect()).getInstructions()).toMatch(/call get_cv and use its extracted CV text as the primary source/)
+  })
+
+  it('registers get_cv as a read-only tool that takes no arguments', async () => {
+    const { tools } = await (await connect()).listTools()
+    const tool = tools.find((t) => t.name === 'get_cv')!
+
+    expect(tool.annotations?.readOnlyHint).toBe(true)
+    expect(tool.description).toMatch(/primary source of the user's professional background/)
+    const schema = tool.inputSchema as { properties?: Record<string, unknown>; required?: string[] }
+    expect(Object.keys(schema.properties ?? {})).toEqual([])
+    expect(schema.required ?? []).toEqual([])
+  })
+
+  it('returns the CV header and full extracted text through a normal get_cv tool call', async () => {
+    const cv = {
+      fileName: 'Jane_Example_CV.pdf', contentType: 'application/pdf', fileSizeBytes: 1234, uploadedAt: '2026-11-23T10:00:00Z',
+      extractionStatus: 'SUCCESS', extractionWarning: null, extractedText: 'Jane Example\nSenior Backend Engineer\nJava, Spring',
+    }
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify(cv), { status: 200 }))
+    const client = await connect(fetchMock)
+    const result = await client.callTool({ name: 'get_cv', arguments: {} })
+
+    expect(result.isError).toBeFalsy()
+    const content = result.content as { type: string; text: string }[]
+    expect(content).toHaveLength(1)
+    expect(content[0]!.type).toBe('text')
+    expect(content[0]!.text).toMatch(/^CV filename: Jane_Example_CV\.pdf\nContent type: application\/pdf\n/)
+    expect(content[0]!.text).toMatch(/\n\nExtracted CV text:\n\nJane Example\nSenior Backend Engineer\nJava, Spring$/)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock.mock.calls[0]![0]).toBe('http://localhost:8080/api/integrations/cv')
+  })
+
+  it('reports missing CVs, authentication and backend failures from get_cv as tool errors', async () => {
+    const cases: [Response, string][] = [
+      [new Response(JSON.stringify({ code: 'CV_NOT_FOUND' }), { status: 404 }), 'No CV has been uploaded'],
+      [new Response('{}', { status: 401 }), 'Job Hunter authentication failed'],
+      [new Response('boom', { status: 500 }), 'could not retrieve the CV'],
+    ]
+    for (const [response, message] of cases) {
+      const client = await connect(vi.fn<typeof fetch>().mockResolvedValue(response))
+      const result = await client.callTool({ name: 'get_cv', arguments: {} })
+      expect(result.isError).toBe(true)
+      expect(JSON.stringify(result.content)).toContain(message)
+    }
+  })
+
+  it('lists the original CV PDF as an MCP resource and serves its exact bytes via resources/read', async () => {
+    const pdf = new Uint8Array([...Buffer.from('%PDF-1.4\n'), 0, 1, 2, 253, 254, 255, ...Buffer.from('%%EOF')])
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(pdf, {
+        status: 200,
+        headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': "attachment; filename*=UTF-8''Jane_Example_CV.pdf" },
+      }),
+    )
+    const client = await connect(fetchMock)
+
+    const { resources } = await client.listResources()
+    expect(resources).toEqual([
+      expect.objectContaining({ uri: 'jobhunter://cv/current.pdf', name: 'cv', mimeType: 'application/pdf' }),
+    ])
+    expect(fetchMock).not.toHaveBeenCalled() // listing never touches the backend
+
+    const read = await client.readResource({ uri: 'jobhunter://cv/current.pdf' })
+    const contents = read.contents[0] as { uri: string; mimeType: string; blob: string; _meta: Record<string, unknown> }
+    expect(contents.uri).toBe('jobhunter://cv/current.pdf')
+    expect(contents.mimeType).toBe('application/pdf')
+    expect(contents._meta['dev.erezalkalay.jobhunter/fileName']).toBe('Jane_Example_CV.pdf')
+    expect(new Uint8Array(Buffer.from(contents.blob, 'base64'))).toEqual(pdf)
+    expect(fetchMock.mock.calls[0]![0]).toBe('http://localhost:8080/api/integrations/cv/file')
+  })
+
+  it('answers resources/read with an error when there is no CV or the token is rejected', async () => {
+    const missing = await connect(vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({ code: 'CV_NOT_FOUND' }), { status: 404 })))
+    await expect(missing.readResource({ uri: 'jobhunter://cv/current.pdf' })).rejects.toThrow(/No CV has been uploaded/)
+
+    const unauthorized = await connect(vi.fn<typeof fetch>().mockResolvedValue(new Response('{}', { status: 401 })))
+    await expect(unauthorized.readResource({ uri: 'jobhunter://cv/current.pdf' })).rejects.toThrow(/authentication failed/)
   })
 
   it('tells the client to call both read-only tools before searching for jobs', async () => {

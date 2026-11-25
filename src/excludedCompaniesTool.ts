@@ -20,7 +20,7 @@ export const GET_EXCLUDED_COMPANIES_DESCRIPTION =
   'Compare names case-insensitively and allow for minor variants (e.g. "Flix" also covers "Flix SE" and "FlixBus"). ' +
   'Exclusion is a discovery preference, not a restriction: if the user explicitly asks to add a specific job at an excluded company, ' +
   'add_job still works. The list always belongs to the owner of the configured Job Hunter integration token; ' +
-  'it can only be edited by the user in Job Hunter (Settings → Job Discovery → Excluded Companies), not through this server.'
+  'it can only be edited by the user in Job Hunter (Settings → Job Search → Excluded Companies), not through this server.'
 
 export function describeExcludedCompanies(outcome: GetExcludedCompaniesOutcome): ToolResult {
   const text = (value: string, isError = false): ToolResult => ({

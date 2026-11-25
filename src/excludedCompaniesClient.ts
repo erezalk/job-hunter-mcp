@@ -10,7 +10,7 @@ export type GetExcludedCompaniesOutcome =
 const singleLine = (value: unknown): string | null =>
   typeof value === 'string' && value.trim().length > 0 ? value.replace(/\s+/g, ' ').trim() : null
 
-// The integration token owner's Excluded Companies (Settings -> Job Discovery in Job Hunter).
+// The integration token owner's Excluded Companies (Settings -> Job Search in Job Hunter).
 // Read-only: no body, no parameters, and in particular nothing that could select a user.
 export async function getExcludedCompanies(
   config: Config,
